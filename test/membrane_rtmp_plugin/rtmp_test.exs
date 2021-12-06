@@ -27,6 +27,8 @@ defmodule Membrane.RTMP.Source.Test do
 
   test "Check if the stream started and that it ends", %{pid: pid} do
     assert_pipeline_playback_changed(pid, :prepared, :playing, 10_000)
+    assert_sink_caps(pid, :video_sink, %Membrane.H264{})
+    assert_sink_caps(pid, :audio_sink, %Membrane.AAC{})
     assert_sink_buffer(pid, :video_sink, %Membrane.Buffer{})
     assert_sink_buffer(pid, :audio_sink, %Membrane.Buffer{})
     assert_end_of_stream(pid, :audio_sink, :input, 11_000)
@@ -42,9 +44,18 @@ defmodule Membrane.RTMP.Source.Test do
 
     options = %Membrane.Testing.Pipeline.Options{
       elements: [
-        src: %Membrane.RTMP.Bin{port: @port},
+        src: %Membrane.RTMP.Source{port: @port},
         audio_sink: Testing.Sink,
-        video_sink: Testing.Sink
+        video_sink: Testing.Sink,
+        video_parser %Membrane.H264.FFmpeg.Parser{
+          alignment: :au,
+          attach_nalus?: true,
+          skip_until_keyframe?: true
+        },
+        :audio_parser => %Membrane.AAC.Parser{
+          in_encapsulation: :none,
+          out_encapsulation: :none
+        },
       ],
       links: [
         link(:src) |> via_out(:audio) |> to(:audio_sink),

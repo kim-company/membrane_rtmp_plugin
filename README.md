@@ -42,7 +42,16 @@ defmodule Example.Server do
 
     spec = %ParentSpec{
       children: %{
-        :rtmp_server => %Membrane.RTMP.Bin{port: @port},
+        :rtmp_server => %Membrane.RTMP.Source{port: @port},
+        :video_parser => %Membrane.H264.FFmpeg.Parser{
+          alignment: :au,
+          attach_nalus?: true,
+          skip_until_keyframe?: true
+        },
+        :audio_parser => %Membrane.AAC.Parser{
+          in_encapsulation: :none,
+          out_encapsulation: :none
+        },
         :hls => %Membrane.HTTPAdaptiveStream.SinkBin{
           manifest_module: Membrane.HTTPAdaptiveStream.HLS,
           target_window_duration: 20 |> Membrane.Time.seconds(),
@@ -54,10 +63,13 @@ defmodule Example.Server do
       links: [
         link(:rtmp_server)
         |> via_out(:audio)
+        |> to(:audio_parser)
         |> via_in(Pad.ref(:input, :audio), options: [encoding: :AAC])
         |> to(:hls),
+
         link(:rtmp_server)
         |> via_out(:video)
+        |> to(:video_parser)
         |> via_in(Pad.ref(:input, :video), options: [encoding: :H264])
         |> to(:hls)
       ]

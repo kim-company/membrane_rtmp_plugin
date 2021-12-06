@@ -11,39 +11,43 @@ defmodule Membrane.RTMP.Source do
 
   def_output_pad :audio,
     availability: :always,
-    caps: {AAC, encapsulation: :none},
+    caps: Membrane.AAC.RemoteStream,
     mode: :pull
 
   def_output_pad :video,
     availability: :always,
-    caps: :any,
+    caps: {Membrane.H264.RemoteStream, stream_format: :byte_stream},
     mode: :pull
 
-  def_options url: [
+  def_options port: [
+                spec: 1..65_535,
+                description: "Port on which the server will listen"
+              ],
+              local_ip: [
                 spec: binary(),
-                description: """
-                URL on which the FFmpeg instance will be created
-                """
+                default: "127.0.0.1",
+                description:
+                  "IP address on which the server will listen. This is useful if you have more than one network interface"
               ],
               timeout: [
                 spec: Time.t() | :infinity,
                 default: :infinity,
                 description: """
-                Time the server will wait for connection from the client
+                Time during which the connection with the client must be established before handle_prepared_to_playing fails.
 
                 Duration given must be a multiply of one second or atom `:infinity`.
                 """
-              ],
-              max_buffer_size: [
-                spec: non_neg_integer(),
-                default: 1024
               ]
 
   @impl true
   def handle_init(%__MODULE__{} = opts) do
     {:ok,
-     Map.from_struct(opts)
-     |> Map.merge(%{provider: nil, stale_frame: nil})}
+     %{
+       timeout: opts.timeout,
+       url: "rtmp://#{opts.local_ip}:#{opts.port}",
+       provider: nil,
+       stale_frame: nil
+     }}
   end
 
   @impl true
@@ -139,21 +143,31 @@ defmodule Membrane.RTMP.Source do
       |> Enum.concat()
 
   defp get_audio_params(native) do
-    with {:ok, asc} <- Native.get_audio_params(native),
-         {:ok, caps} <- get_aac_caps(asc) do
-      [caps: {:audio, caps}]
-    else
-      {:error, _reason} -> []
+    case Native.get_audio_params(native) do
+      {:ok, audio_specific_config} ->
+        caps = %Membrane.AAC.RemoteStream{
+          audio_specific_config: audio_specific_config
+        }
+
+        [caps: {:audio, caps}]
+
+      {:error, _reason} ->
+        []
     end
   end
 
   defp get_video_params(native) do
-    with {:ok, config} <- Native.get_video_params(native),
-         {:ok, parsed} <- AVC.Configuration.parse(config),
-         %AVC.Configuration{pps: [pps], sps: [sps]} = parsed do
-      [buffer: {:video, %Buffer{payload: <<0, 0, 1>> <> sps <> <<0, 0, 1>> <> pps}}]
-    else
-      {:error, _reason} -> []
+    case Native.get_video_params(native) do
+      {:ok, config} ->
+        caps = %Membrane.H264.RemoteStream{
+          decoder_configuration_record: config,
+          stream_format: :byte_stream
+        }
+
+        [caps: {:video, caps}]
+
+      {:error, _reason} ->
+        []
     end
   end
 
