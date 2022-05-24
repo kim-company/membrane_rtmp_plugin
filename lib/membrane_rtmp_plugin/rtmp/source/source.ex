@@ -106,6 +106,13 @@ defmodule Membrane.RTMP.Source do
   end
 
   @impl true
+  def handle_other({:frame_provider, {:ok, _type, _timestamp, _frame}}, ctx, state)
+      when ctx.playback_state == :prepared do
+    # In case when frame provider has been terminated but managed to send one last frame
+    {:ok, state}
+  end
+
+  @impl true
   def handle_other({:frame_provider, {:error, reason}}, _ctx, _state),
     do: raise("Fetching of the frame failed. Reason: #{inspect(reason)}")
 

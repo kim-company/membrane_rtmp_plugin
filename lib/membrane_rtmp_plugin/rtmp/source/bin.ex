@@ -65,17 +65,6 @@ defmodule Membrane.RTMP.SourceBin do
       ]
     }
 
-    {{:ok, spec: spec}, %{pending_end_of_stream?: false}}
-  end
-
-  @impl true
-  def handle_element_end_of_stream(_element, _ctx, state) do
-    # both audio and video parsers need to announce end of stream
-    # so wait for the second one
-    if state.pending_end_of_stream? do
-      {{:ok, notify: :end_of_stream}, state}
-    else
-      {:ok, %{state | pending_end_of_stream?: true}}
-    end
+    {{:ok, spec: spec}, %{}}
   end
 end
