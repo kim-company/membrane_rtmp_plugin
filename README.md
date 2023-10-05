@@ -1,3 +1,7 @@
+# WHY
+The original Sink transforms PTS & DTS values before sending. As soon as in our setup we're
+writing cues in the H264 packets contained in the FLV tags, we cannot let it touch the timing.
+
 # Membrane RTMP Plugin
 
 [![Hex.pm](https://img.shields.io/hexpm/v/membrane_rtmp_plugin.svg)](https://hex.pm/packages/membrane_rtmp_plugin)
