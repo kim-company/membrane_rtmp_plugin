@@ -224,8 +224,9 @@ defmodule Membrane.RTMP.Source do
   def handle_info({:socket_closed, _socket}, ctx, state) do
     cond do
       ctx.pads.output.end_of_stream? -> {[], state}
-      ctx.pads.output.start_of_stream? -> {[end_of_stream: :output], state}
-      true -> {[notify_parent: :unexpected_socket_closed, end_of_stream: :output], state}
+      # This might be a connection error. Only deleteStream message signals that
+      # the transmission is finished.
+      true -> {[notify_parent: :unexpected_socket_closed], state}
     end
   end
 
