@@ -31,4 +31,17 @@ defprotocol Membrane.RTMP.MessageValidator do
   """
   @spec validate_set_data_frame(t(), Messages.SetDataFrame.t()) :: validation_result_t()
   def validate_set_data_frame(impl, message)
+
+  @doc """
+  Validates the `t:Membrane.RTMP.Messages.OnExpectAdditionalMedia.t/0` message.
+  """
+  @spec validate_on_expect_additional_media(t(), Messages.OnExpectAdditionalMedia.t()) ::
+          validation_result_t()
+  def validate_on_expect_additional_media(impl, message)
+
+  @doc """
+  Validates the `t:Membrane.RTMP.Messages.OnMetaData.t/0` message.
+  """
+  @spec validate_on_meta_data(t(), Messages.OnMetaData.t()) :: validation_result_t()
+  def validate_on_meta_data(impl, message)
 end

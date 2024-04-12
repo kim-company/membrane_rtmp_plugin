@@ -26,8 +26,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
 
     pipeline = await_pipeline_started()
 
-    assert_pipeline_play(pipeline)
-
     assert_buffers(%{
       pipeline: pipeline,
       sink: :video_sink,
@@ -46,7 +44,7 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     assert_end_of_stream(pipeline, :video_sink, :input)
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :ok = Task.await(ffmpeg_task)
   end
 
@@ -61,8 +59,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
 
     pipeline = await_pipeline_started()
 
-    assert_pipeline_play(pipeline)
-
     assert_buffers(%{
       pipeline: pipeline,
       sink: :video_sink,
@@ -81,7 +77,7 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     assert_end_of_stream(pipeline, :video_sink, :input)
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :ok = Task.await(ffmpeg_task)
   end
 
@@ -99,7 +95,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
       end)
 
     pipeline = await_pipeline_started()
-    assert_pipeline_play(pipeline)
 
     assert_buffers(%{
       pipeline: pipeline,
@@ -112,7 +107,7 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     assert_end_of_stream(pipeline, :video_sink, :input)
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :ok = Task.await(ffmpeg_task)
   end
 
@@ -128,7 +123,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
       end)
 
     pipeline = await_pipeline_started()
-    assert_pipeline_play(pipeline)
 
     assert_buffers(%{
       pipeline: pipeline,
@@ -141,7 +135,7 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     assert_end_of_stream(pipeline, :video_sink, :input)
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :ok = Task.await(ffmpeg_task)
   end
 
@@ -154,7 +148,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
       end)
 
     pipeline = await_pipeline_started()
-    assert_pipeline_play(pipeline)
 
     assert_pipeline_notified(
       pipeline,
@@ -166,7 +159,7 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     assert_end_of_stream(pipeline, :video_sink, :input)
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :ok = Task.await(ffmpeg_task)
   end
 
@@ -179,7 +172,6 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
       end)
 
     pipeline = await_pipeline_started()
-    assert_pipeline_play(pipeline)
 
     assert_pipeline_notified(
       pipeline,
@@ -188,8 +180,25 @@ defmodule Membrane.RTMP.SourceBin.IntegrationTest do
     )
 
     # Cleanup
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
     assert :error = Task.await(ffmpeg_task)
+  end
+
+  test "Handles client socket close before start of stream" do
+    {:ok, port} = start_tcp_server()
+
+    Task.async(fn ->
+      host = @local_ip |> String.to_charlist() |> :inet.parse_address() |> elem(1)
+      {:ok, socket} = :gen_tcp.connect(host, port, [], :infinity)
+      :gen_tcp.close(socket)
+    end)
+
+    pipeline = await_pipeline_started()
+
+    assert_end_of_stream(pipeline, :audio_sink, :input)
+    assert_end_of_stream(pipeline, :video_sink, :input)
+
+    assert_pipeline_notified(pipeline, :src, :unexpected_socket_close)
   end
 
   defp start_tcp_server(validator \\ %Membrane.RTMP.MessageValidator.Default{}) do

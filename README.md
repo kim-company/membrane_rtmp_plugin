@@ -9,28 +9,36 @@ It is a part of [Membrane Multimedia Framework](https://membraneframework.org).
 
 ## Installation
 
-First, you need to install FFmpeg on your system:
-
-### macOS
-
-```shell
-brew install ffmpeg
-```
-
-### Ubuntu
-
-```shell
-sudo apt-get install ffmpeg
-```
-
 The package can be installed by adding `membrane_rtmp_plugin` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-	  {:membrane_rtmp_plugin, "~> 0.17.2"}
+	  {:membrane_rtmp_plugin, "~> 0.23.2"}
   ]
 end
+```
+
+The precompiled builds of the [ffmpeg](https://www.ffmpeg.org) will be pulled and linked automatically. However, should there be any problems, consider installing it manually.
+
+### Manual instalation of dependencies
+
+#### macOS
+
+```shell
+brew install ffmpeg
+```
+
+#### Ubuntu
+
+```shell
+sudo apt-get install ffmpeg
+```
+
+#### Arch / Manjaro
+
+```shell
+pacman -S ffmpeg
 ```
 
 ## SourceBin
@@ -87,7 +95,6 @@ It will connect to RTMP server provided via URL and stream H264 video and AAC au
 RTMP server that will receive this stream can be launched with ffmpeg by running the following commands:
 
 ```bash
-export RTMP_URL=rtmp://localhost:1935
 ffmpeg -y -listen 1 -f flv -i rtmp://localhost:1935 -c copy dest.flv
 ```
 
