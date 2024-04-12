@@ -7,7 +7,7 @@ defmodule Membrane.RTMP.Source do
 
   The Source allows for providing custom validator module, that verifies some of the RTMP messages.
   The module has to implement the `Membrane.RTMP.MessageValidator` behaviour.
-  If the validation fails, a `t:stream_validation_failed_t/0` notification is sent.
+  If the validation fails, the socket gets closed and the parent is notified with `t:stream_validation_failed_t/0`.
 
   This implementation is limited to only AAC and H264 streams.
   """
@@ -20,7 +20,7 @@ defmodule Membrane.RTMP.Source do
   def_output_pad :output,
     availability: :always,
     accepted_format: Membrane.RemoteStream,
-    mode: :pull
+    flow_control: :manual
 
   def_options socket: [
                 spec: :gen_tcp.socket() | :ssl.sslsocket(),
@@ -225,7 +225,7 @@ defmodule Membrane.RTMP.Source do
     cond do
       ctx.pads.output.end_of_stream? -> {[], state}
       ctx.pads.output.start_of_stream? -> {[end_of_stream: :output], state}
-      true -> {[notify_parent: :unexpected_socket_closed], state}
+      true -> {[notify_parent: :unexpected_socket_closed, end_of_stream: :output], state}
     end
   end
 

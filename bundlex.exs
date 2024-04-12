@@ -3,18 +3,24 @@ defmodule Membrane.RTMP.BundlexProject do
 
   def project do
     [
-      natives: natives(Bundlex.platform())
+      natives: natives()
     ]
   end
 
-  defp natives(_platform) do
+  defp natives() do
     [
       rtmp_sink: [
         sources: ["sink/rtmp_sink.c"],
         deps: [unifex: :unifex],
-        interface: [:nif],
+        interface: :nif,
         preprocessor: Unifex,
-        pkg_configs: ["libavformat", "libavutil"]
+        os_deps: [
+          ffmpeg: [
+            {:precompiled, Membrane.PrecompiledDependencyProvider.get_dependency_url(:ffmpeg),
+             ["libavformat", "libavutil"]},
+            {:pkg_config, ["libavformat", "libavutil"]}
+          ]
+        ]
       ]
     ]
   end
