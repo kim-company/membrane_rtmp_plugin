@@ -93,8 +93,7 @@ defmodule Membrane.RTMP.Source do
       Membrane.RTMPServer.start_link(
         port: port,
         use_ssl?: use_ssl?,
-        handle_new_client: handle_new_client,
-        client_timeout: Membrane.Time.milliseconds(100)
+        handle_new_client: handle_new_client
       )
 
     state = %{state | app: app, stream_key: stream_key, server: server_pid}
