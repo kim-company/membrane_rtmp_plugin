@@ -13,6 +13,7 @@ defmodule Membrane.RTMP.SourceBin do
   """
   use Membrane.Bin
 
+  require Membrane.Logger
   alias Membrane.{AAC, H264, RTMP}
 
   def_output_pad :video,
@@ -38,6 +39,13 @@ defmodule Membrane.RTMP.SourceBin do
                 An URL on which the client is expected to connect, for example:
                 rtmp://127.0.0.1:1935/app/stream_key
                 """
+              ],
+              client_timeout: [
+                default: Membrane.Time.seconds(5),
+                spec: Membrane.Time.t(),
+                description: """
+                Time after which an unused client connection is automatically closed, expressed in `Membrane.Time.t()` units. Defaults to 5 seconds.
+                """
               ]
 
   @impl true
@@ -45,7 +53,8 @@ defmodule Membrane.RTMP.SourceBin do
     spec =
       child(:src, %RTMP.Source{
         client_ref: opts.client_ref,
-        url: opts.url
+        url: opts.url,
+        client_timeout: opts.client_timeout
       })
       |> child(:demuxer, Membrane.FLV.Demuxer)
 
@@ -113,6 +122,18 @@ defmodule Membrane.RTMP.SourceBin do
 
   def handle_child_notification(:unexpected_socket_closed, :src, _ctx, state) do
     {[notify_parent: :unexpected_socket_close], state}
+  end
+
+  def handle_child_notification(:stream_deleted, :src, _ctx, state) do
+    {[notify_parent: :stream_deleted], state}
+  end
+
+  def handle_child_notification(notification, child, _ctx, state) do
+    Membrane.Logger.warning(
+      "Received unrecognized child notification from: #{inspect(child)}: #{inspect(notification)}"
+    )
+
+    {[], state}
   end
 
   @doc """
