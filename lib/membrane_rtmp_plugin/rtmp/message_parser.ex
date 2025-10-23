@@ -203,17 +203,28 @@ defmodule Membrane.RTMP.MessageParser do
       # if a message's body is greater than the chunk size then
       # after every chunk_size's bytes there is a 0x03 one byte header that
       # needs to be stripped and is not counted into the body_size
-      headers_to_strip = div(body_size - 1, chunk_size)
+      additional_chunks = div(body_size - 1, chunk_size)
+      chunk_header_size = chunk_basic_header_size(header.chunk_stream_id)
+      headers_to_strip = additional_chunks * chunk_header_size
 
       # if the initial header contains a extended timestamp then
       # every following chunk will contain the timestamp
-      timestamps_to_strip = if header.extended_timestamp?, do: headers_to_strip * 4, else: 0
+      timestamps_to_strip =
+        if header.extended_timestamp?, do: additional_chunks * 4, else: 0
 
       body_size + headers_to_strip + timestamps_to_strip
     else
       body_size
     end
   end
+
+  defp chunk_basic_header_size(chunk_stream_id) when chunk_stream_id >= 0 and chunk_stream_id <= 63,
+    do: 1
+
+  defp chunk_basic_header_size(chunk_stream_id) when chunk_stream_id >= 64 and chunk_stream_id <= 319,
+    do: 2
+
+  defp chunk_basic_header_size(_chunk_stream_id), do: 3
 
   # message's size can exceed the defined chunk size
   # in this case the message gets divided into
@@ -229,25 +240,98 @@ defmodule Membrane.RTMP.MessageParser do
 
   defp do_combine_body_chunks(body, chunk_size, header, acc) do
     case body do
-      <<body::binary-size(chunk_size), 0b11::2, _chunk_stream_id::6, timestamp::32, rest::binary>>
-      when header.extended_timestamp? and timestamp == header.timestamp ->
-        do_combine_body_chunks(rest, chunk_size, header, [acc, body])
+      <<chunk::binary-size(chunk_size), rest::binary>> ->
+        case consume_chunk_separator(rest, header) do
+          {:ok, remainder} ->
+            do_combine_body_chunks(remainder, chunk_size, header, [acc, chunk])
 
-      # cut out the header byte (staring with 0b11)
-      <<body::binary-size(chunk_size), 0b11::2, _chunk_stream_id::6, rest::binary>> ->
-        do_combine_body_chunks(rest, chunk_size, header, [acc, body])
+          {:error, {:unexpected_header_type, header_type}} ->
+            Membrane.Logger.warning(
+              "Unexpected header type when combining body chunks: #{header_type}"
+            )
 
-      <<_body::binary-size(chunk_size), header_type::2, _chunk_stream_id::6, _rest::binary>> ->
-        Membrane.Logger.warning(
-          "Unexpected header type when combining body chunks: #{header_type}"
-        )
+            IO.iodata_to_binary([acc, chunk, rest])
 
-        IO.iodata_to_binary([acc, body])
+          {:error, {:unexpected_chunk_stream_id, chunk_stream_id}} ->
+            Membrane.Logger.warning(
+              "Unexpected chunk stream id when combining body chunks: #{chunk_stream_id}"
+            )
+
+            IO.iodata_to_binary([acc, chunk, rest])
+
+          {:error, {:unexpected_extended_timestamp, timestamp}} ->
+            Membrane.Logger.warning(
+              "Unexpected extended timestamp when combining body chunks: #{timestamp}"
+            )
+
+            IO.iodata_to_binary([acc, chunk, rest])
+
+          {:error, :need_more_data} ->
+            Membrane.Logger.warning(
+              "Need more data when combining body chunks; stopping at current accumulation"
+            )
+
+            IO.iodata_to_binary([acc, chunk, rest])
+
+          :no_separator ->
+            IO.iodata_to_binary([acc, chunk, rest])
+        end
 
       body ->
         IO.iodata_to_binary([acc, body])
     end
   end
+
+  defp consume_chunk_separator(<<>>, _header), do: :no_separator
+
+  defp consume_chunk_separator(<<0b11::2, marker::6, rest::binary>>, header) do
+    with {:ok, rest_after_basic, chunk_stream_id} <- consume_chunk_stream_id(rest, marker),
+         :ok <- validate_chunk_stream_id(header, chunk_stream_id),
+         {:ok, remainder} <- consume_extended_timestamp(rest_after_basic, header) do
+      {:ok, remainder}
+    else
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp consume_chunk_separator(<<header_type::2, _::binary>>, _header),
+    do: {:error, {:unexpected_header_type, header_type}}
+
+  defp consume_chunk_separator(_rest, _header), do: {:error, :need_more_data}
+
+  defp consume_chunk_stream_id(rest, marker) when marker in 2..63,
+    do: {:ok, rest, marker}
+
+  defp consume_chunk_stream_id(<<chunk_stream_id::8, rest::binary>>, 0),
+    do: {:ok, rest, chunk_stream_id + 64}
+
+  defp consume_chunk_stream_id(<<low::8, high::8, rest::binary>>, 1),
+    do: {:ok, rest, high * 256 + low + 64}
+
+  defp consume_chunk_stream_id(_rest, marker),
+    do: {:error, {:unexpected_chunk_stream_id, marker}}
+
+  defp validate_chunk_stream_id(%Header{chunk_stream_id: chunk_stream_id}, chunk_stream_id), do: :ok
+
+  defp validate_chunk_stream_id(_header, chunk_stream_id),
+    do: {:error, {:unexpected_chunk_stream_id, chunk_stream_id}}
+
+  defp consume_extended_timestamp(rest, %Header{extended_timestamp?: false}), do: {:ok, rest}
+
+  defp consume_extended_timestamp(<<timestamp::32, rest::binary>>, %Header{
+         extended_timestamp?: true,
+         timestamp: timestamp
+       }),
+       do: {:ok, rest}
+
+  defp consume_extended_timestamp(<<timestamp::32, _rest::binary>>, %Header{
+         extended_timestamp?: true
+       }),
+       do: {:error, {:unexpected_extended_timestamp, timestamp}}
+
+  defp consume_extended_timestamp(_rest, %Header{extended_timestamp?: true}),
+    do: {:error, :need_more_data}
 
   # in case of client interception the Publish message indicates successful connection
   # (unless proxy temrinates the connection) and medai can be relayed

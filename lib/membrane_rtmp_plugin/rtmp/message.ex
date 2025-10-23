@@ -102,5 +102,19 @@ defmodule Membrane.RTMP.Message do
   end
 
   @compile {:inline, chunk_separator: 1}
-  defp chunk_separator(chunk_stream_id), do: <<0b11::2, chunk_stream_id::6>>
+  defp chunk_separator(chunk_stream_id) when chunk_stream_id >= 0 and chunk_stream_id <= 63 do
+    <<0b11::2, chunk_stream_id::6>>
+  end
+
+  defp chunk_separator(chunk_stream_id) when chunk_stream_id >= 64 and chunk_stream_id <= 319 do
+    <<0b11::2, 0::6, chunk_stream_id - 64::8>>
+  end
+
+  defp chunk_separator(chunk_stream_id) do
+    id_minus_64 = chunk_stream_id - 64
+    low_byte = rem(id_minus_64, 256)
+    high_byte = div(id_minus_64, 256)
+
+    <<0b11::2, 1::6, low_byte::8, high_byte::8>>
+  end
 end
