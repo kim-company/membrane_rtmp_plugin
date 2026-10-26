@@ -15,6 +15,7 @@ defmodule Membrane.RTMPServer do
   - port: Port on which RTMP server will listen. Defaults to 1935.
   - use_ssl?: If true, SSL socket (for RTMPS) will be used. Otherwise, TCP socket (for RTMP) will be used. Defaults to false.
   - ssl_options: SSL options to configure the SSL socket.
+  - tcp_options: List of inet socket options applied to each accepted client socket. Defaults to `[]`.
   - client_timeout: Time after which an unused client connection is automatically closed, expressed in `Membrane.Time.t()` units. Defaults to 5 seconds.
   - name: If not nil, value of this field will be used as a name under which the server's process will be registered. Defaults to nil.
 
@@ -54,6 +55,7 @@ defmodule Membrane.RTMPServer do
           port: :inet.port_number(),
           use_ssl?: boolean(),
           ssl_options: keyword() | nil,
+          tcp_options: [:inet.socket_setopt()],
           name: atom() | nil,
           handle_new_client: (client_ref :: pid(), app :: String.t(), stream_key :: String.t() ->
                                 client_behaviour_spec()),
@@ -64,6 +66,7 @@ defmodule Membrane.RTMPServer do
     port: 1935,
     use_ssl?: false,
     ssl_options: nil,
+    tcp_options: [],
     name: nil,
     client_timeout: Membrane.Time.seconds(5)
   }

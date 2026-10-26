@@ -43,7 +43,8 @@ defmodule Membrane.RTMPServer.Listener do
             server: pid(),
             client_supervisor: pid(),
             port: non_neg_integer(),
-            ssl_options: keyword()
+            ssl_options: keyword(),
+            tcp_options: [:inet.socket_setopt()]
           }
         ) :: no_return()
   def run(options) do
@@ -118,6 +119,7 @@ defmodule Membrane.RTMPServer.Listener do
           end
       end
 
+    set_tcp_options(client, options.socket_module, options.tcp_options)
     start_client_handler(client, options)
     accept_loop(socket, options)
   end
@@ -151,6 +153,21 @@ defmodule Membrane.RTMPServer.Listener do
 
         DynamicSupervisor.terminate_child(options.client_supervisor, client_reference)
         options.socket_module.close(client)
+    end
+  end
+
+  defp set_tcp_options(_client, _socket_module, []), do: :ok
+
+  defp set_tcp_options(client, socket_module, tcp_options) do
+    result =
+      case socket_module do
+        :gen_tcp -> :inet.setopts(client, tcp_options)
+        :ssl -> :ssl.setopts(client, tcp_options)
+      end
+
+    case result do
+      :ok -> :ok
+      {:error, reason} -> Logger.warning("Couldn't set TCP options: #{inspect(reason)}")
     end
   end
 end
